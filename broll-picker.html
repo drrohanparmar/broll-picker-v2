@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>B-Roll Picker</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI",sans-serif;background:#0E1620;color:#fff;height:100vh;display:flex;flex-direction:column}
+
+/* TOP BAR */
+.topbar{background:#0E1620;border-bottom:1px solid #1e2a38;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar .brand{font-size:18px;font-weight:700;color:#FFF500;letter-spacing:.04em}
+.topbar .counter{font-size:13px;color:#8a9bb0}
+.save-btn{background:#FFF500;color:#0E1620;border:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
+.save-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* LAYOUT */
+.layout{display:flex;flex:1;overflow:hidden}
+
+/* SIDEBAR */
+.sidebar{width:280px;flex-shrink:0;background:#111c28;border-right:1px solid #1e2a38;display:flex;flex-direction:column;overflow:hidden}
+.sidebar-top{padding:10px 12px;border-bottom:1px solid #1e2a38;flex-shrink:0}
+.search-box{width:100%;padding:8px 10px;background:#0E1620;border:1px solid #2a3a4e;border-radius:7px;color:#fff;font-size:13px;outline:none}
+.search-box::placeholder{color:#4a5a6e}
+.filter-btns{display:flex;gap:6px;margin-top:8px}
+.fbtn{flex:1;padding:6px;border-radius:6px;border:1px solid #2a3a4e;background:transparent;color:#8a9bb0;font-size:12px;cursor:pointer}
+.fbtn.active{background:#FFF500;color:#0E1620;border-color:#FFF500;font-weight:700}
+.scene-list{flex:1;overflow-y:auto}
+.scene-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #1a2535;cursor:pointer;transition:background .15s}
+.scene-item:hover{background:#1a2535}
+.scene-item.active{background:#1e3a28;border-left:3px solid #FFF500}
+.sdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.sdot.picked{background:#22c55e}
+.sdot.empty{background:#2a3a4e}
+.snum{font-size:11px;color:#4a5a6e;width:22px;flex-shrink:0}
+.stxt{font-size:12px;color:#c7d4e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* MAIN AREA */
+.main{flex:1;overflow-y:auto;padding:24px 28px;background:#0f1a26}
+.upload-screen{display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:16px}
+.upload-card{background:#111c28;border:2px dashed #2a3a4e;border-radius:14px;padding:40px;text-align:center;cursor:pointer;max-width:420px;width:100%}
+.upload-card:hover{border-color:#FFF500}
+.upload-card h2{color:#FFF500;font-size:20px;margin-bottom:8px}
+.upload-card p{color:#8a9bb0;font-size:13px}
+.upload-card input{display:none}
+
+.scene-detail{}
+.scene-num{font-size:13px;color:#FFF500;font-weight:700;margin-bottom:4px}
+.scene-say{font-size:15px;color:#c7d4e0;margin-bottom:16px;line-height:1.5}
+
+.instr-box{background:#1a2e1a;border:1px solid #2a4a2a;border-radius:10px;padding:14px 16px;margin-bottom:18px}
+.instr-label{font-size:10px;color:#4ade80;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.instr-text{font-size:15px;color:#fff;line-height:1.5;font-weight:500}
+
+.search-status{font-size:13px;color:#8a9bb0;margin-bottom:12px}
+.thumb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.thumb{position:relative;border-radius:8px;overflow:hidden;cursor:pointer;border:3px solid transparent;background:#1a2535;aspect-ratio:16/9}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb.picked{border-color:#22c55e}
+.tick{position:absolute;inset:0;background:rgba(34,197,94,.3);display:flex;align-items:center;justify-content:center;font-size:32px;opacity:0}
+.thumb.picked .tick{opacity:1}
+.dur{position:absolute;bottom:5px;right:5px;background:rgba(0,0,0,.75);color:#fff;font-size:11px;padding:2px 6px;border-radius:4px}
+.retry-btn{margin-top:14px;padding:8px 16px;border-radius:7px;border:1px solid #2a3a4e;background:transparent;color:#8a9bb0;font-size:13px;cursor:pointer}
+.retry-btn:hover{border-color:#FFF500;color:#FFF500}
+.empty-main{color:#4a5a6e;text-align:center;padding:60px 20px;font-size:15px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">🎬 B-Roll Picker</div>
+  <div class="counter" id="counter">—</div>
+  <button class="save-btn" id="saveBtn" disabled onclick="saveJSON()">JSON Save Karo ⬇</button>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-top">
+      <input class="search-box" id="searchBox" placeholder="Scene dhundho..." oninput="renderList()"/>
+      <div class="filter-btns">
+        <button class="fbtn active" id="fAll" onclick="setFilter('all')">Sab</button>
+        <button class="fbtn" id="fUnpicked" onclick="setFilter('unpicked')">Baaki</button>
+        <button class="fbtn" id="fPicked" onclick="setFilter('picked')">Chune hue</button>
+      </div>
+    </div>
+    <div class="scene-list" id="sceneList"></div>
+  </div>
+
+  <div class="main" id="main">
+    <div class="upload-screen">
+      <div class="upload-card" onclick="document.getElementById('fileInput').click()" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
+        <h2>📂 JSON Upload Karo</h2>
+        <p>MedMotion ka project JSON yahan daalein<br/>(click karein ya drag karein)</p>
+        <input type="file" id="fileInput" accept=".json" onchange="handleFile(event)"/>
+      </div>
+      <p style="color:#4a5a6e;font-size:12px">B-Roll Picker — sirf clip select karni hai</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────
+const PEXELS_KEY = "yyj1hR2vIajnBo7cKUCyyFeAmwCbLysb70bFe4BgLoP99DkXNz0B1s1V"; // replace karo
+const PER_PAGE   = 8; // fewer results = fewer API calls
+
+// ── STATE ───────────────────────────────────────────────
+let plan     = null;   // full JSON
+let selected = 0;      // selected beat index
+let filter   = "all";
+let cache    = {};     // query → results (avoids repeat API calls)
+
+// ── FILE LOAD ───────────────────────────────────────────
+function handleDrop(e){
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if(f) readFile(f);
+}
+function handleFile(e){ readFile(e.target.files[0]); }
+function readFile(file){
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const p = JSON.parse(r.result);
+      if(!Array.isArray(p.beats)||!p.beats.length){ alert("Galat file — beats array nahi mila."); return; }
+      plan   = p;
+      cache  = {};
+      selected = 0;
+      renderAll();
+    }catch(e){ alert("JSON parse error: "+e.message); }
+  };
+  r.readAsText(file);
+}
+
+// ── RENDER ──────────────────────────────────────────────
+function renderAll(){
+  renderList();
+  renderDetail();
+  updateCounter();
+  document.getElementById("saveBtn").disabled = false;
+}
+
+function setFilter(f){
+  filter = f;
+  ["all","unpicked","picked"].forEach(x=>{
+    document.getElementById("f"+x.charAt(0).toUpperCase()+x.slice(1))
+      .classList.toggle("active", x===f);
+  });
+  renderList();
+}
+
+function renderList(){
+  if(!plan) return;
+  const q    = document.getElementById("searchBox").value.toLowerCase();
+  const list = document.getElementById("sceneList");
+  list.innerHTML = "";
+  plan.beats.forEach((b,i)=>{
+    const picked = !!b.layers?.[0]?.pexels_id;
+    if(filter==="picked"   && !picked) return;
+    if(filter==="unpicked" && picked)  return;
+    if(q && !b.say?.toLowerCase().includes(q)) return;
+    const div = document.createElement("div");
+    div.className = "scene-item"+(i===selected?" active":"");
+    div.innerHTML = `
+      <span class="snum">${i+1}</span>
+      <span class="sdot ${picked?"picked":"empty"}"></span>
+      <span class="stxt">${b.say||"(khaali)"}</span>`;
+    div.onclick = ()=>{ selected=i; renderList(); renderDetail(); };
+    list.appendChild(div);
+  });
+}
+
+async function renderDetail(){
+  if(!plan){ return; }
+  const b      = plan.beats[selected];
+  const layer  = b.layers?.[0] || {};
+  const instr  = layer.instruction || "";
+  const query  = layer.query || b.say || "";
+  const pickedId = layer.pexels_id || null;
+
+  const main = document.getElementById("main");
+  main.innerHTML = `
+    <div class="scene-detail">
+      <div class="scene-num">Scene ${selected+1} / ${plan.beats.length}</div>
+      <div class="scene-say">${b.say||""}</div>
+      ${instr?`<div class="instr-box">
+        <div class="instr-label">📌 Kaisa clip chahiye</div>
+        <div class="instr-text">${instr}</div>
+      </div>`:""}
+      <div class="search-status" id="searchStatus">Clips dhundh rahe hain...</div>
+      <div class="thumb-grid" id="thumbGrid"></div>
+      <button class="retry-btn" onclick="searchForScene(${selected},true)">🔄 Dobara Dhundho</button>
+    </div>`;
+
+  await searchForScene(selected, false, query, pickedId);
+}
+
+async function searchForScene(idx, force, query, pickedId){
+  const b      = plan.beats[idx];
+  const layer  = b.layers?.[0] || {};
+  query    = query   || layer.query || b.say || "";
+  pickedId = pickedId!==undefined ? pickedId : (layer.pexels_id||null);
+
+  const statusEl = document.getElementById("searchStatus");
+  const gridEl   = document.getElementById("thumbGrid");
+  if(!statusEl||!gridEl) return;
+
+  // use cache unless forced
+  if(!force && cache[query]){
+    renderThumbs(cache[query], pickedId, idx);
+    return;
+  }
+
+  statusEl.textContent = "Clips dhundh rahe hain...";
+  gridEl.innerHTML     = "";
+
+  try{
+    const res  = await fetch(
+      `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&orientation=landscape&per_page=${PER_PAGE}`,
+      { headers:{ Authorization: PEXELS_KEY } }
+    );
+    const data = await res.json();
+    const vids = (data.videos||[]).map(v=>{
+      const files = (v.video_files||[]).filter(f=>f.file_type==="video/mp4");
+      const hd    = files.find(f=>f.width>=1280&&f.width<=1920)
+                 || files.sort((a,b)=>(b.width||0)-(a.width||0))[0];
+      if(!hd) return null;
+      return { id:String(v.id), thumb:v.image, url:hd.link, dur:v.duration };
+    }).filter(Boolean);
+
+    cache[query] = vids;
+    renderThumbs(vids, pickedId, idx);
+  }catch(err){
+    if(statusEl) statusEl.textContent = "Error: "+err.message;
+  }
+}
+
+function renderThumbs(vids, pickedId, idx){
+  const statusEl = document.getElementById("searchStatus");
+  const gridEl   = document.getElementById("thumbGrid");
+  if(!statusEl||!gridEl) return;
+
+  if(!vids.length){
+    statusEl.textContent = "Koi clip nahi mili — 'Dobara Dhundho' try karein.";
+    return;
+  }
+  statusEl.textContent = `${vids.length} clips mili hain — ek chunein:`;
+  gridEl.innerHTML = "";
+  vids.forEach(v=>{
+    const d   = document.createElement("div");
+    d.className = "thumb"+(v.id===pickedId?" picked":"");
+    d.innerHTML = `<img src="${v.thumb}" loading="lazy"/><span class="dur">${v.dur}s</span><div class="tick">✓</div>`;
+    d.onclick   = ()=>pickClip(idx, v);
+    gridEl.appendChild(d);
+  });
+}
+
+function pickClip(idx, video){
+  const b = plan.beats[idx];
+  if(b.layers?.[0]){
+    b.layers[0].pexels_id = video.id;
+    b.layers[0].src       = video.url;
+  }
+  updateCounter();
+  renderList();
+  // update picked state in current thumbs without re-fetching
+  document.querySelectorAll(".thumb").forEach(el=> el.classList.remove("picked"));
+  event.currentTarget.classList.add("picked");
+  // update tick visibility handled by class
+}
+
+function updateCounter(){
+  if(!plan) return;
+  const picked = plan.beats.filter(b=>b.layers?.[0]?.pexels_id).length;
+  const total  = plan.beats.length;
+  document.getElementById("counter").textContent = `${picked} / ${total} scenes chune gaye`;
+}
+
+// ── SAVE ────────────────────────────────────────────────
+function saveJSON(){
+  if(!plan) return;
+  const blob = new Blob([JSON.stringify(plan,null,2)],{type:"application/json"});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = (plan.project||"project").replace(/\s+/g,"-").toLowerCase()+"-picked.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
